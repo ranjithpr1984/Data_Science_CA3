@@ -106,8 +106,8 @@ find_correlation <- function(df) {
 }
 
 # Read CSV Property Price Register Ireland CSV to R dataframe
-property_price1 <- read.csv("Property_Price_Register_Ireland.csv",na.strings=c("","NA"))
-property_price <- property_price1
+property_price <- read.csv("Property_Price_Register_Ireland.csv",na.strings=c("","NA"))
+
 opar <- par(no.readonly = TRUE)
 #Assign propery name to columns
 names(property_price)[1] <- "Sale_date"
