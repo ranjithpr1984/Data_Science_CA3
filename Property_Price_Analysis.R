@@ -85,22 +85,24 @@ display_skewness <- function(df) {
   par(lopar)
 }
 
-display_correlation <- function(df) {
+find_correlation <- function(df) {
   lopar <- par(no.readonly = TRUE)
   par(mfrow = c(4, 4))
   par(mar=c(2,1,1,1))
   
+  county_corr <- property_price[0, c(3,6)]
+  names(county_corr)[2] <- "Correlation"
+  
   for(j in 2:ncol(df)) {
+    county_corr[j-1,1] <- names(df)[j]
+    county_corr[j-1,2] <- round(cor(df[,1],df[,j]),2)
     scatter.smooth(x = df[,1], 
                    y = df[,j], 
                    main = names(df)[j],
                    xlab = "Month")
-    print(paste("Correlation of ",
-                names(df)[j],
-                " : ",
-                round(cor(df[,1],df[,j]),2)))
   }
   par(lopar)
+  return(county_corr)
 }
 
 # Read CSV Property Price Register Ireland CSV to R dataframe
@@ -225,7 +227,33 @@ display_skewness(prop_price_SMC)
 prop_price_NMC$Sale_YearMonth <- as.numeric(prop_price_NMC$Sale_YearMonth)
 prop_price_SMC$Sale_YearMonth <- as.numeric(prop_price_SMC$Sale_YearMonth)
 
-display_correlation(prop_price_NMC)
-display_correlation(prop_price_SMC)
+#pairs(prop_price_NMC[,1:5])
 
-pairs(prop_price_NMC[,1:5])
+NMC_corr <- find_correlation(prop_price_NMC)
+SMC_corr <- find_correlation(prop_price_SMC)
+
+# Compare county time to price correlation
+par(mfrow = c(1, 2))
+colr <- numeric(length(NMC_corr$Correlation))
+colr[NMC_corr$Correlation < 0 ] <- 2
+colr[NMC_corr$Correlation > 0 ] <- 3
+barplot(abs(Correlation) ~ County,
+        data = NMC_corr,
+        main = "County time to price correlation comparision - New",
+        xlab = "County",
+        ylab = "Correlation",
+        las = 2,
+        col=colr)
+
+colr <- numeric(length(SMC_corr$Correlation))
+colr[SMC_corr$Correlation < 0 ] <- 2
+colr[SMC_corr$Correlation > 0 ] <- 3
+barplot(abs(Correlation) ~ County,
+        data = SMC_corr,
+        main = "County time to price correlation comparision - Second hand",
+        xlab = "County",
+        ylab = "Correlation",
+        las = 2,
+        col=colr)
+par(opar)
+
