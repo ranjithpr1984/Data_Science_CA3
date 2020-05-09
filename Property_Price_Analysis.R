@@ -1,12 +1,118 @@
-# Read CSV Property Price Register Ireland CSV to R dataframe
-property_price <- read.csv("Property_Price_Register_Ireland.csv",na.strings=c("","NA"))
+#install.packages("reshape2")
 
+#Functions
+nvl <- function(x, y) {
+  if(is.na(x))
+    return(y)
+  else 
+    return(x)
+}
+
+set_na_to_mean <- function(df) {
+  cn <- ncol(df)
+  rn <- nrow(df)
+  for (i in 2:rn)
+    for (j in 2:cn)
+      if(is.na(df[i,j]))
+        df[i,j] = mean(c(df[i-1,j],df[i+1,j]),na.rm = TRUE)
+        
+  return(df)
+}
+
+find_out_layers <- function(df) {
+  
+  lopar <- par(no.readonly = TRUE)
+  par(mfrow = c(4, 4))
+  par(mar=c(1,1,1,1))
+  
+  out_layers <- df[0,]
+  
+  for(county_name in unique(df$County)) {
+    county_price <- df[df$County == county_name,6]
+    out_layer_stats <- boxplot.stats(county_price)$stats
+    boxplot(county_price, main = county_name)
+    out_layers <- rbind(out_layers,
+                        subset(df,
+                               County == county_name &
+                                 (Final_Price < min(out_layer_stats) |
+                                    Final_Price > max(out_layer_stats))))
+  }
+  par(lopar)
+  return(out_layers)
+}
+
+remve_out_layers <- function(df) {
+  
+  in_layers <- df[0,]
+  
+  for(county_name in unique(df$County)) {
+    county_price <- df[df$County == county_name,6]
+    out_layer_stats <- boxplot.stats(county_price)$stats
+    boxplot(county_price, main = county_name)
+    in_layers <- rbind(in_layers,
+                       subset(df,
+                             County == county_name &
+                                Final_Price >= min(out_layer_stats) &
+                               Final_Price <= max(out_layer_stats)))
+  }
+  return(in_layers)
+}
+
+display_skewness <- function(df) {
+  
+  library(e1071)
+  library(crayon)
+  
+  lopar <- par(no.readonly = TRUE)
+  par(mfrow = c(4, 4))
+  par(mar=c(1,1,1,1))
+  
+  for(j in 2:ncol(df)) {
+    county_skewness <- round(e1071::skewness(df[,j]), 2)
+    if(abs(county_skewness) <= .5)
+      cat(green(paste("Skewness of ", names(df)[j], " : ", county_skewness,"\n")))
+    else if(abs(county_skewness) <= 1)
+      cat(yellow(paste("Skewness of ", names(df)[j], " : ", county_skewness,"\n")))
+    else
+      cat(red(paste("Skewness of ", names(df)[j], " : ", county_skewness,"\n")))
+    
+    plot(density(df[,j]), main = paste("Density Plot: ",names(df)[j]), 
+         ylab = "Frequency", 
+         sub = paste("Skewness:",county_skewness))
+
+    polygon(density(df[,j]), col = "red")
+  }
+  par(lopar)
+}
+
+display_correlation <- function(df) {
+  lopar <- par(no.readonly = TRUE)
+  par(mfrow = c(4, 4))
+  par(mar=c(2,1,1,1))
+  
+  for(j in 2:ncol(df)) {
+    scatter.smooth(x = df[,1], 
+                   y = df[,j], 
+                   main = names(df)[j],
+                   xlab = "Month")
+    print(paste("Correlation of ",
+                names(df)[j],
+                " : ",
+                round(cor(df[,1],df[,j]),2)))
+  }
+  par(lopar)
+}
+
+# Read CSV Property Price Register Ireland CSV to R dataframe
+property_price1 <- read.csv("Property_Price_Register_Ireland.csv",na.strings=c("","NA"))
+property_price <- property_price1
+opar <- par(no.readonly = TRUE)
 #Assign propery name to columns
 names(property_price)[1] <- "Sale_date"
 names(property_price)[3] <- "Postal_code"
 names(property_price)[5] <- "Price"
 names(property_price)[7] <- "Vat_Exclusive"
-names(property_price)[8] <- "Property_description"
+names(property_price)[8] <- "Property_type"
 
 str(property_price, strict.width = "cut")
 
@@ -32,27 +138,94 @@ names(property_price)[6] <- "Is_full_market_price"
 
 # Change type column Sale_date to Date
 property_price$Sale_date <- as.Date(as.character(Sale_date), "%d/%m/%Y")
-str(property_price)
 
-# Convert Irish data in Propert description to english
-property_price$Property_description[grepl("Teach.*Nua", Property_description)] <- "New Dwelling house /Apartment"
-property_price$Property_description[grepl("Teach.*imhe", Property_description)] <- "New Dwelling house /Apartment"
+#Shortern property type
+# First Convert Irish data in Propert description to english
+Short_property_type <- as.character(Property_type)
+Short_property_type[grepl("Teach.*Nua", Short_property_type)] <- "New Dwelling house /Apartment"
+Short_property_type[grepl("Teach.*imhe", Short_property_type)] <- "Second-Hand Dwelling house /Apartment"
 
-unique(property_price$Property_description)
+Short_property_type[Short_property_type == "New Dwelling house /Apartment" ] <- "New"
+Short_property_type[Short_property_type == "Second-Hand Dwelling house /Apartment" ] <- "Second-Hand"
+property_price$Property_type <- as.factor(Short_property_type)
 
-#Add column property type (New/Second-Hand)
-property_price$Property_type <- as.factor(sub(" .*$","",Property_description))
+#Add colum year of sale
+property_price$Sale_YearMonth <- format(property_price$Sale_date,"%Y%m")
 
-library(mice)
-md.pattern(property_price,rotate.names = TRUE)
+#library(mice)
+#md.pattern(property_price,rotate.names = TRUE)
 
-library(VIM)
-missing_values <- aggr(property_price, prop = FALSE, numbers = TRUE)
-missing_values$missings$Percentage <- missing_values$missings$Count / nrow(property_price) * 100
-missing_values$missings
+#library(VIM)
+#missing_values <- aggr(property_price, prop = FALSE, numbers = TRUE)
+#missing_values$missings$Percentage <- missing_values$missings$Count / nrow(property_price) * 100
+#missing_values$missings
 
 #Remove column Postal_code(3rd column) and Property.Size.Description(9th Column)
 #which has more than 80% of values blank
-property_price <- property_price[-c(3, 9)]
+#With new Final price colum, price column is reduntant and can be deleted
+#Vat added for vat excluded records, so vat_exclusive column no more required
+property_price <- property_price[-c(3, 5, 7, 9)]
 
-#detach(property_price)
+detach(property_price)
+str(property_price, strict.width = "cut")
+
+prop_price_new <- subset(property_price,Property_type == "New")
+prop_price_second <- subset(property_price,Property_type == "Second-Hand")
+
+prop_price_new_out <- find_out_layers(prop_price_new)
+prop_price_second_out <- find_out_layers(prop_price_second)
+
+nrow(prop_price_new)
+nrow(prop_price_new_out)
+
+nrow(prop_price_second)
+nrow(prop_price_second_out)
+
+prop_price_second[,0]
+
+prop_price_new <- remve_out_layers(prop_price_new)
+prop_price_second <- remve_out_layers(prop_price_second)
+
+nrow(prop_price_new) / nrow(prop_price_new_out)
+nrow(prop_price_second) / nrow(prop_price_second_out)
+
+prop_price_NM <- aggregate(x = prop_price_new$Final_Price,
+                           by=list(County = prop_price_new$County,
+                                   Sale_YearMonth = prop_price_new$Sale_YearMonth),
+                           FUN = mean)
+prop_price_SM <- aggregate(x = prop_price_second$Final_Price,
+                           by=list(County = prop_price_second$County,
+                                   Sale_YearMonth = prop_price_second$Sale_YearMonth),
+                           FUN = mean)
+
+library("reshape2")
+prop_price_NMC <- dcast(prop_price_NM, Sale_YearMonth ~ County)
+prop_price_SMC <- dcast(prop_price_SM, Sale_YearMonth ~ County)
+
+#library(VIM)
+#missing_values <- aggr(prop_price_NMC, prop = FALSE, numbers = TRUE)
+#missing_values <- aggr(prop_price_SMC, prop = FALSE, numbers = TRUE)
+
+prop_price_NMC <- set_na_to_mean(prop_price_NMC)
+prop_price_SMC <- set_na_to_mean(prop_price_SMC)
+
+#library(VIM)
+missing_values <- aggr(prop_price_NMC, prop = FALSE, numbers = TRUE)
+missing_values <- aggr(prop_price_SMC, prop = FALSE, numbers = TRUE)
+
+display_skewness(prop_price_NMC)
+display_skewness(prop_price_SMC)
+
+#scatter.smooth(x = prop_price_NMC$Sale_YearMonth, 
+#               y = prop_price_NMC$Carlow, 
+#               main = "Sale_YearMonth ~ Carlow",
+#               xlab = "Car speed",
+#               ylab = "Stopping distance")
+
+prop_price_NMC$Sale_YearMonth <- as.numeric(prop_price_NMC$Sale_YearMonth)
+prop_price_SMC$Sale_YearMonth <- as.numeric(prop_price_SMC$Sale_YearMonth)
+
+display_correlation(prop_price_NMC)
+display_correlation(prop_price_SMC)
+
+pairs(prop_price_NMC[,1:5])
