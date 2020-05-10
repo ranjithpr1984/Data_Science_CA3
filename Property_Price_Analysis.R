@@ -63,14 +63,27 @@ remve_out_layers <- function(df) {
   return(in_layers)
 }
 
+display_normality <- function(df) {
+  
+  lopar <- par(no.readonly = TRUE)
+  par(mfrow = c(3, 3))
+  par(mar=c(2,1,1,1))
+  
+  for(j in 2:ncol(df)) {
+    qqnorm(df[,j],main = names(df)[j])
+    qqline(df[,j])
+  }
+  par(lopar)
+}
+
 display_skewness <- function(df) {
   
   library(e1071)
   library(crayon)
   
   lopar <- par(no.readonly = TRUE)
-  par(mfrow = c(4, 4))
-  par(mar=c(1,1,1,1))
+  par(mfrow = c(3, 3))
+  par(mar=c(2,1,1,1))
   
   for(j in 2:ncol(df)) {
     county_skewness <- round(e1071::skewness(df[,j]), 2)
@@ -84,37 +97,24 @@ display_skewness <- function(df) {
     plot(density(df[,j]), main = paste("Density Plot: ",names(df)[j]), 
          ylab = "Frequency", 
          sub = paste("Skewness:",county_skewness))
-
+    
     polygon(density(df[,j]), col = "red")
-  }
-  par(lopar)
-}
-
-display_normality <- function(df) {
-  
-  lopar <- par(no.readonly = TRUE)
-  par(mfrow = c(4, 4))
-  par(mar=c(2,1,1,1))
-  
-  for(j in 2:ncol(df)) {
-    qqnorm(df[,j],main = names(df)[j])
-    qqline(df[,j])
   }
   par(lopar)
 }
 
 find_correlation <- function(df) {
   lopar <- par(no.readonly = TRUE)
-  par(mfrow = c(4, 4))
+  par(mfrow = c(3, 3))
   par(mar=c(2,1,1,1))
   
   county_corr <- property_price[0, c(3,6)]
   names(county_corr)[2] <- "Correlation"
   
   for(j in 2:ncol(df)) {
+    YearMonth_num <- as.numeric(as.Date(paste(as.character(df[,1]),"01"),"%Y%m%d"))
     county_corr[j-1,1] <- names(df)[j]
-    county_corr[j-1,2] <- round(cor(df[,1]
-                                    ,df[,j]),2)
+    county_corr[j-1,2] <- round(cor(YearMonth_num, df[,j]),2)
     scatter.smooth(x = df[,1], 
                    y = df[,j], 
                    main = names(df)[j],
@@ -242,31 +242,32 @@ prop_price_SMC <- set_na_to_mean(prop_price_SMC)
 missing_values <- aggr(prop_price_NMC, prop = FALSE, numbers = TRUE)
 missing_values <- aggr(prop_price_SMC, prop = FALSE, numbers = TRUE)
 
-display_skewness(prop_price_NMC)
-display_skewness(prop_price_SMC)
-
-par(opar)
 display_normality(prop_price_NMC)
 display_normality(prop_price_SMC)
 
-prop_price_NMC$Sale_YearMonth <- as.numeric(as.Date(paste(as.character(prop_price_NMC$Sale_YearMonth),"01"),"%Y%m%d"))
-prop_price_SMC$Sale_YearMonth <- as.numeric(as.Date(paste(as.character(prop_price_SMC$Sale_YearMonth),"01"),"%Y%m%d"))
+display_skewness(prop_price_NMC)
+display_skewness(prop_price_SMC)
+
+#prop_price_NMC$Sale_YearMonth <- as.numeric(as.Date(paste(as.character(prop_price_NMC$Sale_YearMonth),"01"),"%Y%m%d"))
+#prop_price_SMC$Sale_YearMonth <- as.numeric(as.Date(paste(as.character(prop_price_SMC$Sale_YearMonth),"01"),"%Y%m%d"))
 #pairs(prop_price_NMC[,1:5])
 
 NMC_corr <- find_correlation(prop_price_NMC)
 SMC_corr <- find_correlation(prop_price_SMC)
 
 # Compare county time to price correlation
+par(opar)
 par(mfrow = c(1, 2))
 colr <- numeric(length(NMC_corr$Correlation))
 colr[NMC_corr$Correlation < 0 ] <- 2
 colr[NMC_corr$Correlation > 0 ] <- 3
-barplot(abs(Correlation) ~ County,
+df.bar <- barplot(abs(Correlation) ~ County,
         data = NMC_corr,
         main = "County time to price correlation - New",
         xlab = "",
         ylab = "",
         las = 2,
+        ylim = c(0,1),
         col=colr)
 mtext(side=1, line=4, "County", font=2)
 mtext(side=2, line=3, "Correlation", font=2)
@@ -280,11 +281,62 @@ barplot(abs(Correlation) ~ County,
         xlab = "",
         ylab = "",
         las = 2,
+        ylim = c(0,1),
         col=colr)
 
 mtext(side=1, line=4, "County", font=2)
 mtext(side=2, line=3, "Correlation", font=2)
 
+par(opar)
+plot(1:26,
+     abs(NMC_corr$Correlation), 
+     type = "l", 
+     col = "red", 
+     xlab = "Counties", 
+     ylab = "Correlation", 
+     xaxt='n')
+par(cex.axis=.7)
+lines(1:26,abs(NMC_corr$Correlation), col="black",type ="h")
+lines(1:26,abs(SMC_corr$Correlation), col="green")
+lines(1:26,abs(SMC_corr$Correlation), col="black",type ="h")
+axis(1, labels = NMC_corr$County, at = c(1:26),las = 2)
+par(opar)
+
+par(mfrow = c(1, 2))
+tmp_corr <- NMC_corr
+tmp_corr$County <- factor(as.character(tmp_corr[order(tmp_corr$Correlation),1]),
+                           levels = as.character(tmp_corr[order(tmp_corr$Correlation),1]))
+tmp_corr$Correlation <- tmp_corr[order(tmp_corr$Correlation),2]
+# Compare county time to price correlation
+colr <- numeric(length(tmp_corr$Correlation))
+colr[tmp_corr$Correlation < 0 ] <- 2
+colr[tmp_corr$Correlation > 0 ] <- 3
+barplot(abs(Correlation) ~ County,
+        data = tmp_corr,
+        main = "County time to price correlation - New",
+        xlab = "",
+        ylab = "",
+        las = 2,
+        ylim = c(0,1),
+        col=colr
+        )
+tmp_corr <- SMC_corr
+tmp_corr$County <- factor(as.character(tmp_corr[order(tmp_corr$Correlation),1]),
+                          levels = as.character(tmp_corr[order(tmp_corr$Correlation),1]))
+tmp_corr$Correlation <- tmp_corr[order(tmp_corr$Correlation),2]
+# Compare county time to price correlation
+colr <- numeric(length(tmp_corr$Correlation))
+colr[tmp_corr$Correlation < 0 ] <- 2
+colr[tmp_corr$Correlation > 0 ] <- 3
+barplot(abs(Correlation) ~ County,
+        data = tmp_corr,
+        main = "County time to price correlation - Second hand",
+        xlab = "",
+        ylab = "",
+        las = 2,
+        ylim = c(0,1),
+        col=colr
+)
 par(opar)
 
 #normality_test <- shapiro.test(prop_price_NMC$Dublin)
