@@ -1,11 +1,17 @@
 #install.packages("reshape2")
 
+opar <- par(no.readonly = TRUE)
+
 #Functions
 nvl <- function(x, y) {
   if(is.na(x))
     return(y)
   else 
     return(x)
+}
+
+num_to_date <- function(n_dt) {
+  return(as.Date(tmp1,origin = "1970-01-01"))
 }
 
 set_na_to_mean <- function(df) {
@@ -22,7 +28,7 @@ set_na_to_mean <- function(df) {
 find_out_layers <- function(df) {
   
   lopar <- par(no.readonly = TRUE)
-  par(mfrow = c(4, 4))
+  par(mfrow = c(3, 3))
   par(mar=c(1,1,1,1))
   
   out_layers <- df[0,]
@@ -48,7 +54,6 @@ remve_out_layers <- function(df) {
   for(county_name in unique(df$County)) {
     county_price <- df[df$County == county_name,6]
     out_layer_stats <- boxplot.stats(county_price)$stats
-    boxplot(county_price, main = county_name)
     in_layers <- rbind(in_layers,
                        subset(df,
                              County == county_name &
@@ -108,7 +113,8 @@ find_correlation <- function(df) {
   
   for(j in 2:ncol(df)) {
     county_corr[j-1,1] <- names(df)[j]
-    county_corr[j-1,2] <- round(cor(df[,1],df[,j]),2)
+    county_corr[j-1,2] <- round(cor(df[,1]
+                                    ,df[,j]),2)
     scatter.smooth(x = df[,1], 
                    y = df[,j], 
                    main = names(df)[j],
@@ -118,18 +124,24 @@ find_correlation <- function(df) {
   return(county_corr)
 }
 
+par(opar)
 # Read CSV Property Price Register Ireland CSV to R dataframe
 property_price <- read.csv("Property_Price_Register_Ireland.csv",na.strings=c("","NA"))
 
-opar <- par(no.readonly = TRUE)
 #Assign propery name to columns
 names(property_price)[1] <- "Sale_date"
 names(property_price)[3] <- "Postal_code"
 names(property_price)[5] <- "Price"
 names(property_price)[7] <- "Vat_Exclusive"
 names(property_price)[8] <- "Property_type"
+names(property_price)[9] <- "Size_desc"
 
 str(property_price, strict.width = "cut")
+
+library(VIM)
+missing_values <- aggr(property_price, prop = FALSE, numbers = TRUE,cex.axis = .8)
+missing_values$missings$Percentage <- missing_values$missings$Count / nrow(property_price) * 100
+missing_values$missings
 
 attach(property_price)
 
@@ -160,20 +172,14 @@ Short_property_type <- as.character(Property_type)
 Short_property_type[grepl("Teach.*Nua", Short_property_type)] <- "New Dwelling house /Apartment"
 Short_property_type[grepl("Teach.*imhe", Short_property_type)] <- "Second-Hand Dwelling house /Apartment"
 
+unique(Short_property_type)
+
 Short_property_type[Short_property_type == "New Dwelling house /Apartment" ] <- "New"
 Short_property_type[Short_property_type == "Second-Hand Dwelling house /Apartment" ] <- "Second-Hand"
 property_price$Property_type <- as.factor(Short_property_type)
 
-#Add colum year of sale
-property_price$Sale_YearMonth <- format(property_price$Sale_date,"%Y%m")
-
 #library(mice)
 #md.pattern(property_price,rotate.names = TRUE)
-
-#library(VIM)
-#missing_values <- aggr(property_price, prop = FALSE, numbers = TRUE)
-#missing_values$missings$Percentage <- missing_values$missings$Count / nrow(property_price) * 100
-#missing_values$missings
 
 #Remove column Postal_code(3rd column) and Property.Size.Description(9th Column)
 #which has more than 80% of values blank
@@ -183,6 +189,9 @@ property_price <- property_price[-c(3, 5, 7, 9)]
 
 detach(property_price)
 str(property_price, strict.width = "cut")
+
+#Add colum Month(and year) of sale
+property_price$Sale_YearMonth <- format(property_price$Sale_date,"%Y%m")
 
 prop_price_new <- subset(property_price,Property_type == "New")
 prop_price_second <- subset(property_price,Property_type == "Second-Hand")
@@ -196,10 +205,11 @@ nrow(prop_price_new_out)
 nrow(prop_price_second)
 nrow(prop_price_second_out)
 
-prop_price_second[,0]
-
 prop_price_new <- remve_out_layers(prop_price_new)
 prop_price_second <- remve_out_layers(prop_price_second)
+
+nrow(prop_price_new) + nrow(prop_price_new_out)
+nrow(prop_price_second) + nrow(prop_price_second_out)
 
 nrow(prop_price_new) / nrow(prop_price_new_out)
 nrow(prop_price_second) / nrow(prop_price_second_out)
@@ -213,18 +223,22 @@ prop_price_SM <- aggregate(x = prop_price_second$Final_Price,
                                    Sale_YearMonth = prop_price_second$Sale_YearMonth),
                            FUN = mean)
 
-library("reshape2")
-prop_price_NMC <- dcast(prop_price_NM, Sale_YearMonth ~ County)
-prop_price_SMC <- dcast(prop_price_SM, Sale_YearMonth ~ County)
+#library("reshape2")
+prop_price_NMC <- reshape2::dcast(prop_price_NM, Sale_YearMonth ~ County)
+prop_price_SMC <- reshape2::dcast(prop_price_SM, Sale_YearMonth ~ County)
 
-#library(VIM)
-#missing_values <- aggr(prop_price_NMC, prop = FALSE, numbers = TRUE)
-#missing_values <- aggr(prop_price_SMC, prop = FALSE, numbers = TRUE)
+str(prop_price_NMC)
+str(prop_price_SMC)
+
+library(VIM)
+missing_values <- aggr(prop_price_NMC, prop = FALSE, numbers = TRUE,cex.axis = .8)
+missing_values
+missing_values <- aggr(prop_price_SMC, prop = FALSE, numbers = TRUE,cex.axis = .8)
+missing_values
 
 prop_price_NMC <- set_na_to_mean(prop_price_NMC)
 prop_price_SMC <- set_na_to_mean(prop_price_SMC)
 
-#library(VIM)
 missing_values <- aggr(prop_price_NMC, prop = FALSE, numbers = TRUE)
 missing_values <- aggr(prop_price_SMC, prop = FALSE, numbers = TRUE)
 
@@ -235,9 +249,8 @@ par(opar)
 display_normality(prop_price_NMC)
 display_normality(prop_price_SMC)
 
-prop_price_NMC$Sale_YearMonth <- as.numeric(prop_price_NMC$Sale_YearMonth)
-prop_price_SMC$Sale_YearMonth <- as.numeric(prop_price_SMC$Sale_YearMonth)
-
+prop_price_NMC$Sale_YearMonth <- as.numeric(as.Date(paste(as.character(prop_price_NMC$Sale_YearMonth),"01"),"%Y%m%d"))
+prop_price_SMC$Sale_YearMonth <- as.numeric(as.Date(paste(as.character(prop_price_SMC$Sale_YearMonth),"01"),"%Y%m%d"))
 #pairs(prop_price_NMC[,1:5])
 
 NMC_corr <- find_correlation(prop_price_NMC)
@@ -245,13 +258,12 @@ SMC_corr <- find_correlation(prop_price_SMC)
 
 # Compare county time to price correlation
 par(mfrow = c(1, 2))
-#par(mai=c(2,.2,1,.2))
 colr <- numeric(length(NMC_corr$Correlation))
 colr[NMC_corr$Correlation < 0 ] <- 2
 colr[NMC_corr$Correlation > 0 ] <- 3
 barplot(abs(Correlation) ~ County,
         data = NMC_corr,
-        main = "County time to price correlation comparision - New",
+        main = "County time to price correlation - New",
         xlab = "",
         ylab = "",
         las = 2,
@@ -264,7 +276,7 @@ colr[SMC_corr$Correlation < 0 ] <- 2
 colr[SMC_corr$Correlation > 0 ] <- 3
 barplot(abs(Correlation) ~ County,
         data = SMC_corr,
-        main = "County time to price correlation comparision - Second hand",
+        main = "County time to price correlation - Second hand",
         xlab = "",
         ylab = "",
         las = 2,
@@ -275,20 +287,16 @@ mtext(side=2, line=3, "Correlation", font=2)
 
 par(opar)
 
-prop_price_NMC$Property_type <- "New"
-prop_price_SMC$Property_type <- "Second-hand"
-
 #normality_test <- shapiro.test(prop_price_NMC$Dublin)
 #normality_test$p.value
 #qqnorm(prop_price_NMC$Dublin)
 #qqline(prop_price_NMC$Dublin)
 
 normality_test_out <- lapply(prop_price_NMC[,2:27], shapiro.test)
-names(normality_test_out)
 
 normality_test_df <- data.frame(names(normality_test_out),
-                                matrix(unlist(normality_test),
-                                       nrow=length(normality_test),
+                                matrix(unlist(normality_test_out),
+                                       nrow=length(normality_test_out),
                                        byrow=T)[,1:2])
 names(normality_test_df)[1] <- "County"
 names(normality_test_df)[2] <- "W"
@@ -296,10 +304,10 @@ names(normality_test_df)[3] <- "pvalue"
 
 normality_test_df$W <- round(as.numeric(as.character(normality_test_df$W)),2)
 normality_test_df$pvalue <- round(as.numeric(as.character(normality_test_df$pvalue)),2)
-str(normality_test_df)
+
 barplot(pvalue ~ County,
         data = normality_test_df,
-        main = "County time to price correlation comparision - Second hand",
+        main = "Normality test p-value",
         xlab = "",
         ylab = "",
         las = 2,
@@ -319,12 +327,8 @@ for(i in 1:nrow(normality_test_df)) {
     print(paste("For ", normality_test_df[i,1],"alternative hypothesis can be rejected"))
 }
 
-power_information <- pwr.t.test(d = 0.8, 
-                                sig.level = 0.05, 
-                                power = 0.90, 
-                                type = "two.sample", 
-                                alternative = "two.sided")
-
+NMC_corr$pwr <- pwr.r.test(r=NMC_corr$Correlation, n=124)$power
+SMC_corr$pwr <- pwr.r.test(r=SMC_corr$Correlation, n=124)$power
 
 #test_result <- wilcox.test(prop_price_NMC$Dublin, prop_price_SMC$Dublin, paired=TRUE)
 #test_result <- wilcox.test(prop_price_NMC$Tipperary, prop_price_SMC$Tipperary, paired=TRUE)
@@ -340,8 +344,10 @@ power_information <- pwr.t.test(d = 0.8,
 #plot(density(prop_price_NMC$Tipperary))
 #polygon(density(prop_price_NMC$Tipperary), col = "red")#
 
-NMC_corr$pwr <- pwr.r.test(r=NMC_corr$Correlation, n=124)$power
-#View(prop_price_new)
-pwr.r.test(r = 0.12	, power = .8 )
 
-tmp <- subset(prop_price_new, County = "Cavan",select = c(1,6))
+#View(prop_price_new)
+#pwr.r.test(r = 0.12	, power = .8 )
+#tmp <- subset(prop_price_new, County = "Cavan",select = c(1,6))
+#str(tmp)
+#tmp$Sale_date <- as.numeric(tmp$Sale_date)
+#cor(tmp$Sale_date,tmp$Final_Price)
