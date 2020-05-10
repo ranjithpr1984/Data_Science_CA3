@@ -379,6 +379,8 @@ for(i in 1:nrow(normality_test_df)) {
     print(paste("For ", normality_test_df[i,1],"alternative hypothesis can be rejected"))
 }
 
+library(pwr)
+
 NMC_corr$pwr <- pwr.r.test(r=NMC_corr$Correlation, n=124)$power
 SMC_corr$pwr <- pwr.r.test(r=SMC_corr$Correlation, n=124)$power
 
